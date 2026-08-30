@@ -1,83 +1,129 @@
-# VandyCV - Resume Builder for Vanderbilt Students
+# VandyCV
 
-## Table of Contents
+An AI-assisted resume builder that turns a student's raw academic and work history into
+industry-specific resume copy, then exports it as a formatted PDF.
 
-- [Project Overview](#project-overview)
-- [Problem Statement](#problem-statement)
-- [Solution](#solution)
-- [Features](#features)
-- [Technologies](#technologies)
-- [Setup Instructions](#setup-instructions)
-- [Deployment](#deployment)
-- [Contributing](#contributing)
-- [License](#license)
+**[Demo video](https://youtu.be/Ob2rA8JFz4I)**
 
-## Project Overview
+<!-- Add a screenshot here. `![VandyCV](docs/screenshot.png)` -->
 
-VandyCV is a web-based software application designed to help Vanderbilt University students create personalized resumes tailored to their academic majors and career goals. With the integration of customizable templates and AI-assisted content generation, VandyCV streamlines the resume creation process, allowing students to present their qualifications effectively to potential employers or graduate programs.
+---
 
-## Problem Statement
+## Why
 
-Many students struggle with creating resumes that highlight their skills and experiences in a way that is industry-specific or tailored to the requirements of different academic majors. Generic resume templates often fail to adequately showcase a student’s qualifications, leading to less impactful applications.
+Students writing their first resume face two problems at once: they do not know what
+their experience is worth, and they do not know how their target industry phrases
+things. Generic templates solve the second problem badly and the first not at all.
 
-## Solution
+VandyCV takes structured input — coursework, roles, activities, target field — and
+generates descriptions written in the vocabulary of that field, then lets the user edit
+and export.
 
-VandyCV solves this issue by offering major-specific resume templates, an intuitive questionnaire to gather essential information, and AI-generated suggestions for work experiences and leadership roles. The platform also provides a dashboard for students to manage and track multiple resumes.
+## How it works
 
-## Features
+```
+Next.js client ──REST──> Flask API ──> PostgreSQL (SQLAlchemy)
+                             │
+                             └──> OpenAI API ──> generated copy ──> cache
+```
 
-- **Major-Specific Resume Templates**: Pre-designed templates tailored to specific majors.
-- **AI-Assisted Content Generation**: AI-generated descriptions for work experiences and leadership roles.
-- **Resume Management**: A dashboard to manage, track, and customize multiple resumes.
-- **Export to PDF**: Users can download their resumes in PDF format.
-- **Drag-and-Drop Interface**: Allows users to easily customize their resumes.
+The client collects structured input through a questionnaire rather than a free-text
+box, which keeps prompts consistent and makes the output reproducible. The Flask API
+owns generation, persistence, and the export path. Firebase issues and verifies tokens;
+the API trusts the token, not the client.
 
-## Technologies
+## Engineering notes
 
-- **Frontend**: Next.js with Tailwind CSS for easy styling.
-- **Backend**: Flask for server-side logic.
-- **Database**: PostgreSQL for storing user information and resume data.
-- **AI Integration**: GPT API for generating professional descriptions.
-- **Authentication**: Vanderbilt email authentication with potential Firebase integration.
+**Prompt design over prompt length.** Generated copy has to sound like the target
+industry, not like a language model. The prompts pass structured fields rather than
+prose, with the target field as an explicit parameter, so output stays consistent across
+users instead of drifting with phrasing.
 
-## Setup Instructions
+**Response caching to control latency and token cost.** Generation is the slow and
+expensive path. Identical structured inputs return cached output rather than re-calling
+the API, which cut both response time and per-user token spend.
 
-1. **Clone the repository**:
+**Schema designed for the read pattern.** Users own many resumes and open them
+repeatedly, so the schema and indexes are built around retrieving one user's full resume
+set quickly rather than around write throughput.
 
-   ```bash
-   git clone https://github.com/your-repo/VandyCV.git
-   cd VandyCV
-   ```
+**Token-based auth, verified server-side.** Firebase handles identity. The API verifies
+the token on every request rather than trusting a client-supplied user ID.
 
-2. **Install dependencies**
+## Stack
 
-   ```bash
-   cd client
-   npm install
-   cd ../server
-   python3 -m venv venv         # Create a virtual environment
-   source venv/bin/activate      # Activate the virtual environment (macOS/Linux)
-   venv\Scripts\activate         # Activate the virtual environment (Windows)
-   pip install -r requirements.txt # install all requirement packages
-   ```
+| Layer | |
+|---|---|
+| Frontend | Next.js, React, Tailwind |
+| Backend | Flask, SQLAlchemy |
+| Database | PostgreSQL |
+| Generation | OpenAI API |
+| Auth | Firebase |
+| Hosting | Vercel (client), Render (API and database) |
 
-3. **Install PostgreSQL**
+## Running it locally
 
-- **macOS**:
-  ```bash
-  brew install postgresql
-  brew services restart postgresql
-  psql postgres
-  ```
-- **Linux/Windows**: Follow the [PostgreSQL installation guide](https://www.postgresql.org/download/).
+Requires Node 18+, Python 3.10+, and PostgreSQL.
 
-5. **Start frontend app**:
-   ```bash
-   npm run dev
-   ```
-6. **Start backend app**:
-   ```bash
-   cd server
-   source venv/bin/activate # Activate the virtual environment
-   python3 server.py
-   ```
+```bash
+git clone https://github.com/stanleychiu0314/vandycv.git
+cd vandycv
+```
+
+**Backend**
+
+```bash
+cd server
+python3 -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env              # then fill in the values below
+python3 server.py
+```
+
+**Frontend**, in a second terminal
+
+```bash
+cd client
+npm install
+npm run dev
+```
+
+The client runs on `http://localhost:3000` and expects the API on `http://localhost:5000`.
+
+**PostgreSQL**
+
+```bash
+brew install postgresql           # macOS
+brew services start postgresql
+createdb vandycv
+```
+
+Linux and Windows: see the [PostgreSQL install guide](https://www.postgresql.org/download/).
+
+## Environment variables
+
+Create `server/.env`:
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `OPENAI_API_KEY` | Generation |
+| `FIREBASE_PROJECT_ID` | Token verification |
+| `FIREBASE_PRIVATE_KEY` | Token verification |
+| `FIREBASE_CLIENT_EMAIL` | Token verification |
+
+<!-- VERIFY these against the actual code before publishing. -->
+
+## Team
+
+Built with [Adam Chen](#) and [Luka Mushkudiani](#) as a three-person project,
+August to December 2024.
+
+I owned the backend and data layer: the Flask API, the PostgreSQL schema and indexing,
+the OpenAI integration and prompt design, and the deployment setup. Adam and Luka led
+the React component work and UI. Firebase auth and API design were done jointly.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
